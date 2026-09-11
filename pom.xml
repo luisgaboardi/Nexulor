@@ -12,67 +12,38 @@
     </parent>
 
     <groupId>com.nexulor</groupId>
-    <artifactId>nexolor</artifactId>
+    <artifactId>nexolor-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-    <name>Nexulor</name>
-    <description>Digital wallet and distributed payment gateway — Phase 1 domain foundation</description>
+    <packaging>pom</packaging>
+    <name>Nexulor Parent</name>
+    <description>Digital wallet and distributed payment gateway — Phase 2</description>
+
+    <modules>
+        <module>grpc-contracts</module>
+        <module>wallet-service</module>
+        <module>fraud-service</module>
+    </modules>
 
     <properties>
         <java.version>21</java.version>
         <maven.compiler.release>21</maven.compiler.release>
+        <protobuf.version>3.25.5</protobuf.version>
+        <grpc.version>1.68.1</grpc.version>
+        <resilience4j.version>2.2.0</resilience4j.version>
+        <caffeine.version>3.1.8</caffeine.version>
     </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <argLine>-Dfile.encoding=UTF-8</argLine>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <dependencyManagement>
+        <dependencies>
+            <!-- Align every io.grpc artifact (incl. transitives from the
+                 grpc-spring-boot-starter) on a single version. -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${grpc.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 </project>

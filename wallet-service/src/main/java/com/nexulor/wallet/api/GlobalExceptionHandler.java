@@ -1,7 +1,10 @@
 package com.nexulor.wallet.api;
 
+import com.nexulor.wallet.application.TransferApplicationService;
+import com.nexulor.wallet.application.TransferApplicationService.FraudRejectedException;
 import com.nexulor.wallet.domain.CurrencyMismatchException;
 import com.nexulor.wallet.domain.DomainException;
+import com.nexulor.wallet.domain.FraudUnavailableException;
 import com.nexulor.wallet.domain.InsufficientFundsException;
 import com.nexulor.wallet.domain.InvalidTransferException;
 import com.nexulor.wallet.domain.TransferNotFoundException;
@@ -38,6 +41,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InsufficientFundsException.class)
     public ResponseEntity<ApiResponses.ErrorResponse> handleInsufficientFunds(InsufficientFundsException ex) {
         return error(HttpStatus.UNPROCESSABLE_ENTITY, "INSUFFICIENT_FUNDS", ex.getMessage());
+    }
+
+    @ExceptionHandler(FraudRejectedException.class)
+    public ResponseEntity<ApiResponses.ErrorResponse> handleFraudRejected(FraudRejectedException ex) {
+        return error(HttpStatus.UNPROCESSABLE_ENTITY, "FRAUD_REJECTED", ex.getMessage());
+    }
+
+    @ExceptionHandler(FraudUnavailableException.class)
+    public ResponseEntity<ApiResponses.ErrorResponse> handleFraudUnavailable(FraudUnavailableException ex) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "FRAUD_UNAVAILABLE", ex.getMessage());
     }
 
     @ExceptionHandler({InvalidTransferException.class, CurrencyMismatchException.class})

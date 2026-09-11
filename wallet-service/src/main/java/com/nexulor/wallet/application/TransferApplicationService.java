@@ -1,5 +1,6 @@
 package com.nexulor.wallet.application;
 
+import com.nexulor.wallet.application.port.FraudEvaluationPort;
 import com.nexulor.wallet.application.port.TransferRepository;
 import com.nexulor.wallet.application.port.WalletRepository;
 import com.nexulor.wallet.domain.InvalidTransferException;
@@ -11,6 +12,7 @@ import com.nexulor.wallet.domain.WalletNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigInteger;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -18,19 +20,26 @@ import java.util.UUID;
 @Service
 public class TransferApplicationService {
 
+    static final int MONEY_SCALE = 2;
+
     private final WalletRepository walletRepository;
     private final TransferRepository transferRepository;
+    private final FraudEvaluationPort fraudEvaluation;
 
     public TransferApplicationService(
             WalletRepository walletRepository,
-            TransferRepository transferRepository) {
+            TransferRepository transferRepository,
+            FraudEvaluationPort fraudEvaluation) {
         this.walletRepository = walletRepository;
         this.transferRepository = transferRepository;
+        this.fraudEvaluation = fraudEvaluation;
     }
 
     /**
      * Executes a P2P transfer under a single ACID transaction.
      * Wallets are locked in UUID order to prevent deadlocks under concurrent transfers.
+     * Fraud is evaluated BEFORE any lock or balance mutation (fail-closed, ADR-005):
+     * rejected or unreachable fraud never moves money.
      */
     @Transactional
     public Transfer transfer(TransferCommand command) {
@@ -42,6 +51,9 @@ public class TransferApplicationService {
         if (amount.isZero()) {
             throw new InvalidTransferException("transfer amount must be greater than zero");
         }
+
+        UUID transferId = UUID.randomUUID();
+        evaluateFraud(transferId, command, amount);
 
         List<UUID> lockOrder = List.of(command.sourceWalletId(), command.destinationWalletId()).stream()
                 .sorted(Comparator.naturalOrder())
@@ -63,6 +75,23 @@ public class TransferApplicationService {
         return transferRepository.save(transfer);
     }
 
+    private void evaluateFraud(UUID transferId, TransferCommand command, Money amount) {
+        BigInteger amountMinor = amount.amount()
+                .movePointRight(MONEY_SCALE)
+                .toBigIntegerExact();
+        FraudEvaluationPort.Decision decision = fraudEvaluation.evaluate(
+                transferId,
+                command.sourceWalletId(),
+                command.destinationWalletId(),
+                amountMinor,
+                command.currency());
+        switch (decision) {
+            case APPROVE, REVIEW -> { /* REVIEW handled as approve in Phase 2 (ADR-005) */ }
+            case REJECT -> throw new FraudRejectedException(
+                    "transfer rejected by fraud rule");
+        }
+    }
+
     @Transactional(readOnly = true)
     public Transfer getTransfer(UUID transferId) {
         return transferRepository.findById(transferId)
@@ -79,5 +108,15 @@ public class TransferApplicationService {
 
     private Wallet lockWallet(UUID walletId) {
         return walletRepository.lockById(walletId);
+    }
+
+    /**
+     * Marker exception so the API layer can map fraud rejections to a
+     * domain-level 422 response without leaking the fraud service contract.
+     */
+    public static class FraudRejectedException extends RuntimeException {
+        public FraudRejectedException(String message) {
+            super(message);
+        }
     }
 }
