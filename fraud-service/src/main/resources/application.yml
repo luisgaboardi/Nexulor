@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: fraud-service
+  threads:
+    virtual:
+      enabled: true
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/fraud
+
+server:
+  port: 8081  # actuator/health only; the service API is gRPC on 9090
+
+grpc:
+  server:
+    port: 9090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+fraud:
+  rules:
+    # minor units (cents): 10,000,000 = R$ 100,000.00
+    amount-ceiling-minor: "10000000"
+    velocity-max-transfers: 5
+    velocity-window: 60s
+
+logging:
+  level:
+    com.nexulor: INFO
