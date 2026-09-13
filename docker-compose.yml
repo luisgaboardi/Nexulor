@@ -16,5 +16,64 @@ services:
       timeout: 5s
       retries: 10
 
+  mongo:
+    image: mongo:7
+    container_name: nexolor-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - nexolor_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  fraud-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.fraud-service
+    container_name: nexolor-fraud
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/fraud
+      GRPC_SERVER_PORT: "9090"
+      FRAUD_RULES_AMOUNT_CEILING_MINOR: "10000000"
+      FRAUD_RULES_VELOCITY_MAX_TRANSFERS: "5"
+      FRAUD_RULES_VELOCITY_WINDOW: 60s
+    ports:
+      - "9090:9090"
+      - "8081:8081"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  wallet-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.wallet-service
+    container_name: nexolor-wallet
+    environment:
+      SPRING_PROFILES_ACTIVE: grpc-fraud
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nexolor
+      GRPC_CLIENT_FRAUDSERVICE_ADDRESS: static://fraud-service:9090
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      fraud-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   nexolor_pg_data:
+  nexolor_mongo_data:
