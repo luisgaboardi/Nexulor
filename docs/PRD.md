@@ -60,7 +60,7 @@ This document is the architectural and functional scope of the project. Any AI a
 
 ## 5. Iterative Implementation Roadmap
 
-* **Phase 1 (Domain Foundation) — CURRENT:** Spring Boot monolith for wallet and transfer logic, PostgreSQL, unit tests, basic REST endpoints.
-* **Phase 2:** Extract Fraud Detection Service; Dockerize; replace in-process calls with gRPC.
+* **Phase 1 (Domain Foundation):** Spring Boot monolith for wallet and transfer logic, PostgreSQL, unit tests, basic REST endpoints. **DONE.**
+* **Phase 2 (Separation and Communication) — CURRENT:** Fraud Detection Service extracted as an independent service; both services containerized with multi-stage Docker builds; in-process calls replaced with contract-first gRPC (`fraud/v1`). See [PHASE-2-PLAN.md](PHASE-2-PLAN.md).
 * **Phase 3:** Kafka + Redis; distributed locks; Notification Service; idempotency keys; Testcontainers.
 * **Phase 4:** API Gateway with GraphQL/WebFlux; OpenTelemetry; Kubernetes; Terraform; GitHub Actions; ADRs.
