@@ -16,12 +16,13 @@
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Nexulor Parent</name>
-    <description>Digital wallet and distributed payment gateway — Phase 2</description>
+    <description>Digital wallet and distributed payment gateway — Phase 3</description>
 
     <modules>
         <module>grpc-contracts</module>
         <module>wallet-service</module>
         <module>fraud-service</module>
+        <module>notification-service</module>
     </modules>
 
     <properties>
@@ -31,6 +32,7 @@
         <grpc.version>1.68.1</grpc.version>
         <resilience4j.version>2.2.0</resilience4j.version>
         <caffeine.version>3.1.8</caffeine.version>
+        <testcontainers.version>2.0.4</testcontainers.version>
     </properties>
 
     <dependencyManagement>
@@ -44,6 +46,48 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <!-- Testcontainers is inherited by every service module for integration
+         tests; only tests actually spin up containers (Phase 3, PRD section 3). -->
+    <dependencies>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Runs *IT integration tests (Testcontainers) during verify. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <environmentVariables>
+                        <!-- Docker Desktop's desktop-linux context pipe; Testcontainers
+                             does not auto-detect it from docker context ls. -->
+                        <DOCKER_HOST>npipe:////./pipe/dockerDesktopLinuxEngine</DOCKER_HOST>
+                    </environmentVariables>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

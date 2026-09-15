@@ -56,11 +56,34 @@
                     <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
                 </configuration>
                 <executions>
+                    <!-- Each goal gets its own temporary proto directory: with a
+                         shared one, the Windows file-lock cleanup race between the
+                         two executions intermittently leaves an incomplete
+                         well-known-types tree and protoc fails with "timestamp.proto
+                         not found". -->
                     <execution>
+                        <id>compile-protobuf-java</id>
                         <goals>
                             <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <additionalProtoPathElements>
+                                <additionalProtoPathElement>${project.basedir}/../.proto-wellknown</additionalProtoPathElement>
+                            </additionalProtoPathElements>
+                            <temporaryProtoFileDirectory>${project.build.directory}/protoc-dependencies-java</temporaryProtoFileDirectory>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>compile-protobuf-grpc</id>
+                        <goals>
                             <goal>compile-custom</goal>
                         </goals>
+                        <configuration>
+                            <additionalProtoPathElements>
+                                <additionalProtoPathElement>${project.basedir}/../.proto-wellknown</additionalProtoPathElement>
+                            </additionalProtoPathElements>
+                            <temporaryProtoFileDirectory>${project.build.directory}/protoc-dependencies-grpc</temporaryProtoFileDirectory>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
