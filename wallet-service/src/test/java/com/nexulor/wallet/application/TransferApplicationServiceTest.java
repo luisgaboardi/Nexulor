@@ -2,6 +2,7 @@ package com.nexulor.wallet.application;
 
 import com.nexulor.wallet.application.port.FraudEvaluationPort;
 import com.nexulor.wallet.application.port.FraudEvaluationPort.Decision;
+import com.nexulor.wallet.application.port.TransferIdempotencyPort;
 import com.nexulor.wallet.application.port.TransferRepository;
 import com.nexulor.wallet.application.port.WalletRepository;
 import com.nexulor.wallet.domain.FraudUnavailableException;
@@ -19,6 +20,8 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -45,11 +48,26 @@ class TransferApplicationServiceTest {
     @Mock
     private FraudEvaluationPort fraudEvaluationPort;
 
+    @Mock
+    private TransferIdempotencyPort idempotencyPort;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private TransferApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new TransferApplicationService(walletRepository, transferRepository, fraudEvaluationPort);
+        service = new TransferApplicationService(
+                walletRepository, transferRepository, fraudEvaluationPort, idempotencyPort, eventPublisher);
+        // publishCompletedEvent requires an active transaction; this mirrors
+        // the @Transactional context the service always runs in
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        TransactionSynchronizationManager.setActualTransactionActive(false);
     }
 
     @Test
@@ -67,11 +85,15 @@ class TransferApplicationServiceTest {
         when(walletRepository.save(any(Wallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
+        when(idempotencyPort.tryBegin(anyString(), anyString()))
+                .thenReturn(TransferIdempotencyPort.Outcome.ACQUIRED);
+
         Transfer result = service.transfer(new TransferCommand(
                 sourceId,
                 destinationId,
                 new BigDecimal("40.00"),
-                "BRL"));
+                "BRL"),
+                "key-1");
 
         assertEquals(Money.of("60.00", "BRL"), source.balance());
         assertEquals(Money.of("50.00", "BRL"), destination.balance());
@@ -93,8 +115,10 @@ class TransferApplicationServiceTest {
                 fundedWallet(invocation.getArgument(0), "50.00"));
         when(walletRepository.save(any(Wallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(idempotencyPort.tryBegin(anyString(), anyString()))
+                .thenReturn(TransferIdempotencyPort.Outcome.ACQUIRED);
 
-        service.transfer(new TransferCommand(sourceId, destinationId, new BigDecimal("10.00"), "BRL"));
+        service.transfer(new TransferCommand(sourceId, destinationId, new BigDecimal("10.00"), "BRL"), "key-2");
 
         InOrder inOrder = Mockito.inOrder(fraudEvaluationPort, walletRepository);
         inOrder.verify(fraudEvaluationPort).evaluate(any(), any(), any(), any(), anyString());
@@ -112,8 +136,10 @@ class TransferApplicationServiceTest {
                 fundedWallet(invocation.getArgument(0), "50.00"));
         when(walletRepository.save(any(Wallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(idempotencyPort.tryBegin(anyString(), anyString()))
+                .thenReturn(TransferIdempotencyPort.Outcome.ACQUIRED);
 
-        service.transfer(new TransferCommand(sourceId, destinationId, new BigDecimal("25.37"), "BRL"));
+        service.transfer(new TransferCommand(sourceId, destinationId, new BigDecimal("25.37"), "BRL"), "key-3");
 
         ArgumentCaptor<BigInteger> amountMinor = ArgumentCaptor.forClass(BigInteger.class);
         verify(fraudEvaluationPort).evaluate(any(), any(), any(), amountMinor.capture(), anyString());
@@ -125,13 +151,15 @@ class TransferApplicationServiceTest {
         UUID sourceId = UUID.randomUUID();
         UUID destinationId = UUID.randomUUID();
 
+        when(idempotencyPort.tryBegin(anyString(), anyString()))
+                .thenReturn(TransferIdempotencyPort.Outcome.ACQUIRED);
         when(fraudEvaluationPort.evaluate(any(), any(), any(), any(), anyString()))
                 .thenReturn(Decision.REJECT);
 
         assertThrows(
                 TransferApplicationService.FraudRejectedException.class,
                 () -> service.transfer(new TransferCommand(
-                        sourceId, destinationId, new BigDecimal("10.00"), "BRL")));
+                        sourceId, destinationId, new BigDecimal("10.00"), "BRL"), "key-4"));
 
         verify(walletRepository, never()).lockById(any());
         verify(walletRepository, never()).save(any());
@@ -143,13 +171,15 @@ class TransferApplicationServiceTest {
         UUID sourceId = UUID.randomUUID();
         UUID destinationId = UUID.randomUUID();
 
+        when(idempotencyPort.tryBegin(anyString(), anyString()))
+                .thenReturn(TransferIdempotencyPort.Outcome.ACQUIRED);
         when(fraudEvaluationPort.evaluate(any(), any(), any(), any(), anyString()))
                 .thenThrow(new FraudUnavailableException("fraud down"));
 
         assertThrows(
                 FraudUnavailableException.class,
                 () -> service.transfer(new TransferCommand(
-                        sourceId, destinationId, new BigDecimal("10.00"), "BRL")));
+                        sourceId, destinationId, new BigDecimal("10.00"), "BRL"), "key-5"));
 
         verify(walletRepository, never()).lockById(any());
         verify(transferRepository, never()).save(any());
@@ -166,9 +196,11 @@ class TransferApplicationServiceTest {
                 fundedWallet(invocation.getArgument(0), "50.00"));
         when(walletRepository.save(any(Wallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(idempotencyPort.tryBegin(anyString(), anyString()))
+                .thenReturn(TransferIdempotencyPort.Outcome.ACQUIRED);
 
         Transfer transfer = service.transfer(new TransferCommand(
-                sourceId, destinationId, new BigDecimal("10.00"), "BRL"));
+                sourceId, destinationId, new BigDecimal("10.00"), "BRL"), "key-6");
 
         assertEquals(TransferStatus.COMPLETED, transfer.status());
     }
@@ -187,8 +219,10 @@ class TransferApplicationServiceTest {
         when(walletRepository.lockById(higher)).thenReturn(source);
         when(walletRepository.save(any(Wallet.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(idempotencyPort.tryBegin(anyString(), anyString()))
+                .thenReturn(TransferIdempotencyPort.Outcome.ACQUIRED);
 
-        service.transfer(new TransferCommand(higher, lower, new BigDecimal("10.00"), "BRL"));
+        service.transfer(new TransferCommand(higher, lower, new BigDecimal("10.00"), "BRL"), "key-7");
 
         ArgumentCaptor<UUID> lockOrder = ArgumentCaptor.forClass(UUID.class);
         verify(walletRepository, times(2)).lockById(lockOrder.capture());
@@ -201,6 +235,8 @@ class TransferApplicationServiceTest {
         UUID sourceId = UUID.fromString("00000000-0000-0000-0000-000000000001");
         UUID destinationId = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
+        when(idempotencyPort.tryBegin(anyString(), anyString()))
+                .thenReturn(TransferIdempotencyPort.Outcome.ACQUIRED);
         when(fraudEvaluationPort.evaluate(any(), any(), any(), any(), anyString()))
                 .thenReturn(Decision.APPROVE);
         when(walletRepository.lockById(sourceId)).thenReturn(fundedWallet(sourceId, "5.00"));
@@ -212,7 +248,7 @@ class TransferApplicationServiceTest {
                         sourceId,
                         destinationId,
                         new BigDecimal("5.01"),
-                        "BRL")));
+                        "BRL"), "key-8"));
 
         verify(transferRepository, never()).save(any());
     }
@@ -227,7 +263,7 @@ class TransferApplicationServiceTest {
                         walletId,
                         walletId,
                         new BigDecimal("1.00"),
-                        "BRL")));
+                        "BRL"), "key-9"));
 
         verify(walletRepository, never()).lockById(any());
         verify(fraudEvaluationPort, never()).evaluate(any(), any(), any(), any(), anyString());

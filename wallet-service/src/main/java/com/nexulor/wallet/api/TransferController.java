@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,15 +27,23 @@ public class TransferController {
         this.transferApplicationService = transferApplicationService;
     }
 
+    /**
+     * Financial mutation with mandatory idempotency (PRD section 3): the
+     * {@code Idempotency-Key} header deduplicates replays across instances;
+     * missing header is a 400, replayed key returns the original 201, and a
+     * reused key with a different payload is a 409.
+     */
     @PostMapping("/transfers")
     public ResponseEntity<ApiResponses.TransferResponse> transfer(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody ApiRequests.TransferRequest request) {
         Transfer transfer = transferApplicationService.transfer(
                 new TransferCommand(
                         request.sourceWalletId(),
                         request.destinationWalletId(),
                         request.amount(),
-                        request.currency().toUpperCase()));
+                        request.currency().toUpperCase()),
+                idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponses.TransferResponse.from(transfer));
     }
 

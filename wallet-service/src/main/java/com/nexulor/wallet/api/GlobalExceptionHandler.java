@@ -2,6 +2,8 @@ package com.nexulor.wallet.api;
 
 import com.nexulor.wallet.application.TransferApplicationService;
 import com.nexulor.wallet.application.TransferApplicationService.FraudRejectedException;
+import com.nexulor.wallet.application.TransferApplicationService.IdempotencyKeyConflictException;
+import com.nexulor.wallet.application.TransferApplicationService.IdempotencyKeyInFlightException;
 import com.nexulor.wallet.domain.CurrencyMismatchException;
 import com.nexulor.wallet.domain.DomainException;
 import com.nexulor.wallet.domain.FraudUnavailableException;
@@ -14,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -48,6 +51,16 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.UNPROCESSABLE_ENTITY, "FRAUD_REJECTED", ex.getMessage());
     }
 
+    @ExceptionHandler(IdempotencyKeyInFlightException.class)
+    public ResponseEntity<ApiResponses.ErrorResponse> handleIdempotencyInFlight(IdempotencyKeyInFlightException ex) {
+        return error(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_IN_FLIGHT", ex.getMessage());
+    }
+
+    @ExceptionHandler(IdempotencyKeyConflictException.class)
+    public ResponseEntity<ApiResponses.ErrorResponse> handleIdempotencyConflict(IdempotencyKeyConflictException ex) {
+        return error(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_CONFLICT", ex.getMessage());
+    }
+
     @ExceptionHandler(FraudUnavailableException.class)
     public ResponseEntity<ApiResponses.ErrorResponse> handleFraudUnavailable(FraudUnavailableException ex) {
         return error(HttpStatus.SERVICE_UNAVAILABLE, "FRAUD_UNAVAILABLE", ex.getMessage());
@@ -62,6 +75,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponses.ErrorResponse> handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
         return error(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
                 "wallet was modified concurrently; retry the operation");
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiResponses.ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex) {
+        return error(HttpStatus.BAD_REQUEST, "MISSING_HEADER",
+                "required header is missing: " + ex.getHeaderName());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
