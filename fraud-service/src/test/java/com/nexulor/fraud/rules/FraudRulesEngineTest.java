@@ -34,7 +34,7 @@ class FraudRulesEngineTest {
         FraudRulesEngine engine = new FraudRulesEngine(List.of(
                 new SelfTransferRule(),
                 new AmountCeilingRule("10000000"),
-                new VelocityRule(5, Duration.ofSeconds(60))));
+                new VelocityRule(5, Duration.ofSeconds(60), new LocalVelocityCounter())));
 
         FraudEvaluationResult result = engine.evaluate(selfTransfer);
 
@@ -61,7 +61,7 @@ class FraudRulesEngineTest {
 
     @Test
     void velocityRuleAllowsUpToLimitThenRejects() {
-        VelocityRule rule = new VelocityRule(2, Duration.ofSeconds(60));
+        VelocityRule rule = new VelocityRule(2, Duration.ofSeconds(60), new LocalVelocityCounter());
         FraudRulesEngine engine = new FraudRulesEngine(List.of(rule));
 
         UUID sourceId = UUID.randomUUID();
@@ -82,7 +82,7 @@ class FraudRulesEngineTest {
 
     @Test
     void velocityRuleCountersArePerWallet() {
-        VelocityRule rule = new VelocityRule(1, Duration.ofSeconds(60));
+        VelocityRule rule = new VelocityRule(1, Duration.ofSeconds(60), new LocalVelocityCounter());
         FraudRulesEngine engine = new FraudRulesEngine(List.of(rule));
 
         TransactionContext fromA = new TransactionContext(
@@ -117,7 +117,7 @@ class FraudRulesEngineTest {
 
     @Test
     void windowExpiryResetsVelocityCounters() throws InterruptedException {
-        VelocityRule rule = new VelocityRule(1, Duration.ofMillis(50));
+        VelocityRule rule = new VelocityRule(1, Duration.ofMillis(50), new LocalVelocityCounter());
 
         TransactionContext tx = new TransactionContext(
                 UUID.randomUUID(),

@@ -1,39 +1,41 @@
 package com.nexulor.fraud.rules;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.nexulor.fraud.domain.FraudDecision;
 import com.nexulor.fraud.domain.FraudEvaluationResult;
 import com.nexulor.fraud.domain.FraudRule;
 import com.nexulor.fraud.domain.TransactionContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * R2: velocity heuristic — rejects when the same source wallet accumulates
  * more than {@code maxTransfers} debits within the rolling window.
  *
- * <p>Counters are per-instance (Caffeine) in Phase 2; the cross-instance
- * Redis version arrives with Phase 3, so this rule is a best-effort signal
- * until then (documented in ADR-005).</p>
+ * <p>Phase 3: the counter lives behind {@link VelocityCounterPort}. The
+ * production wiring is the cross-instance Redis counter (profile
+ * {@code redis-velocity}); the local Caffeine counter remains the default for
+ * standalone runs. If the counter infrastructure fails, the rule fails open —
+ * a broken counter must not reject every transfer, and R1/R3 still run.</p>
  */
 public class VelocityRule implements FraudRule {
 
     public static final String ID = "R2-velocity-source";
 
-    private final int maxTransfersPerWindow;
-    private final Cache<String, AtomicInteger> counters;
+    private static final Logger log = LoggerFactory.getLogger(VelocityRule.class);
 
-    public VelocityRule(int maxTransfersPerWindow, Duration window) {
+    private final int maxTransfersPerWindow;
+    private final Duration window;
+    private final VelocityCounterPort counter;
+
+    public VelocityRule(int maxTransfersPerWindow, Duration window, VelocityCounterPort counter) {
         if (maxTransfersPerWindow <= 0) {
             throw new IllegalArgumentException("maxTransfersPerWindow must be positive");
         }
         this.maxTransfersPerWindow = maxTransfersPerWindow;
-        this.counters = Caffeine.newBuilder()
-                .expireAfterWrite(window)
-                .build();
+        this.window = window;
+        this.counter = counter;
     }
 
     @Override
@@ -44,8 +46,13 @@ public class VelocityRule implements FraudRule {
     @Override
     public FraudEvaluationResult evaluate(TransactionContext context) {
         String key = context.sourceWalletId().toString();
-        AtomicInteger counter = counters.get(key, k -> new AtomicInteger());
-        int seen = counter.incrementAndGet();
+        int seen;
+        try {
+            seen = counter.incrementAndGet(key, window);
+        } catch (RuntimeException e) {
+            log.warn("velocity counter unavailable ({}); failing open for rule {}", e.toString(), ID);
+            return null;
+        }
         if (seen > maxTransfersPerWindow) {
             return new FraudEvaluationResult(
                     FraudDecision.REJECT,
