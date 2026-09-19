@@ -1,0 +1,23 @@
+# ---- build: compile the notification-service module against the reactor ----
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /workspace
+COPY pom.xml .
+COPY grpc-contracts/pom.xml grpc-contracts/
+COPY wallet-service/pom.xml wallet-service/
+COPY fraud-service/pom.xml fraud-service/
+COPY notification-service/pom.xml notification-service/
+COPY .proto-wellknown .proto-wellknown
+RUN --mount=type=cache,target=/root/.m2 mvn -q -pl notification-service -am dependency:go-offline
+COPY grpc-contracts grpc-contracts
+COPY wallet-service wallet-service
+COPY fraud-service fraud-service
+COPY notification-service notification-service
+RUN --mount=type=cache,target=/root/.m2 mvn -q -pl notification-service -am -DskipTests package
+
+# ---- runtime: slim JRE, non-root ----
+FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -S app && adduser -S app -G app
+USER app
+COPY --from=build /workspace/notification-service/target/notification-service-*.jar /app/app.jar
+EXPOSE 8082
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]
