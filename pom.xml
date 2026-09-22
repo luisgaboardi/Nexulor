@@ -16,13 +16,14 @@
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Nexulor Parent</name>
-    <description>Digital wallet and distributed payment gateway — Phase 3</description>
+    <description>Digital wallet and distributed payment gateway — Phase 4</description>
 
     <modules>
         <module>grpc-contracts</module>
         <module>wallet-service</module>
         <module>fraud-service</module>
         <module>notification-service</module>
+        <module>api-gateway</module>
     </modules>
 
     <properties>
@@ -33,6 +34,7 @@
         <resilience4j.version>2.2.0</resilience4j.version>
         <caffeine.version>3.1.8</caffeine.version>
         <testcontainers.version>2.0.4</testcontainers.version>
+        <spring-cloud.version>2024.0.0</spring-cloud.version>
     </properties>
 
     <dependencyManagement>
@@ -50,6 +52,13 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
                 <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

@@ -2,12 +2,13 @@
 
 Digital wallet and distributed payment gateway — **showcase portfolio** for senior backend engineering.
 
-Phase 3 adds **Redis-backed idempotency and distributed locks**, **Kafka event flow** to a new **Notification Service**, **cross-instance fraud velocity**, and a **Testcontainers** integration suite.
+Phase 3 adds **Redis-backed idempotency and distributed locks**, **Kafka event flow** to a new **Notification Service**, **cross-instance fraud velocity**, and a **Testcontainers** integration suite. Phase 4 (in progress) adds an **API Gateway** — Spring Cloud Gateway REST routing plus a GraphQL aggregation endpoint on WebFlux (ADR-009).
 
-## Stack (Phase 3)
+## Stack
 
 - Java 21 (virtual threads enabled)
 - Spring Boot 3.4
+- Spring Cloud Gateway + Spring GraphQL / WebFlux (API Gateway, Phase 4)
 - Spring Web / Data JPA / Validation / Actuator
 - PostgreSQL + Flyway (wallet core)
 - MongoDB (fraud audit log + statement read model)
@@ -26,6 +27,7 @@ grpc-contracts/        # proto files + generated stubs (contract-first)
 wallet-service/        # financial core: wallets, P2P transfers, PostgreSQL
 fraud-service/         # fraud rules engine, gRPC server, MongoDB audit
 notification-service/  # Kafka consumer, statement read model (CQRS), REST
+api-gateway/           # single entry point: REST routing + GraphQL aggregation (Phase 4)
 docs/
   PRD.md
   ADRs/                # Architecture Decision Records (English)
@@ -39,9 +41,29 @@ Dockerfile.*           # multi-stage builds (cached Maven layers, non-root JRE)
 docker compose up -d --build
 ```
 
-This starts PostgreSQL, MongoDB, Redis, Kafka (KRaft), the fraud service (gRPC :9090, health :8081), the wallet service (REST :8080) with the `grpc-fraud` + `redis-velocity` profiles, and the notification service (REST :8082).
+This starts PostgreSQL, MongoDB, Redis, Kafka (KRaft), the fraud service (gRPC :9090, health :8081), the wallet service (REST :8080) with the `grpc-fraud` + `redis-velocity` profiles, the notification service (REST :8082), and the API Gateway (REST routing + GraphQL on :8088).
 
-Health checks: `GET http://localhost:8080/actuator/health` (wallet), `GET http://localhost:8081/actuator/health` (fraud), `GET http://localhost:8082/actuator/health` (notification).
+Health checks: `GET http://localhost:8088/actuator/health` (gateway), `GET http://localhost:8080/actuator/health` (wallet), `GET http://localhost:8081/actuator/health` (fraud), `GET http://localhost:8082/actuator/health` (notification).
+
+## API Gateway (Phase 4, ADR-009)
+
+Single entry point for external clients on **`:8088`**:
+
+- **REST routing** — every wallet/transfer/statement path below also works through the gateway (`http://localhost:8088/api/v1/...`); requests are proxied to the owning service.
+- **GraphQL** — `POST /graphql` (GraphiQL UI at `/graphiql`):
+
+```graphql
+query {
+  walletSummary(ownerId: "11111111-1111-1111-1111-111111111111") {
+    wallet { balance currency }
+    recentTransfers { amount status }
+    statement { direction amount }
+    partialErrors
+  }
+}
+```
+
+`walletSummary` fans out to the wallet core and the statement read model in parallel and stitches one response. If the statement service is down the query still returns, with the failure reported in `partialErrors` (graceful degradation — the statement is an eventual read model).
 
 ## REST API (wallet service)
 
@@ -112,9 +134,9 @@ Transfers run inside a single database transaction. Both wallets are locked with
 
 ## Roadmap
 
-See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 3 (done)**.
+See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 (in progress)** — API Gateway done; next: CI/CD, OpenTelemetry, Kubernetes, Terraform.
 
-- Phase 4: API Gateway (GraphQL/WebFlux), K8s, Terraform, CI/CD, OpenTelemetry
+- Phase 4 remaining: GitHub Actions, OpenTelemetry tracing, K8s manifests, Terraform
 
 ## Tests
 

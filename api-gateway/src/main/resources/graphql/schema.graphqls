@@ -1,0 +1,49 @@
+# Aggregated API Gateway schema (PRD section 2.1).
+# Money amounts travel as String to preserve BigDecimal precision end to end.
+
+type Wallet {
+    id: ID!
+    ownerId: ID!
+    balance: String!
+    currency: String!
+    createdAt: String!
+    updatedAt: String!
+}
+
+type Transfer {
+    id: ID!
+    sourceWalletId: ID!
+    destinationWalletId: ID!
+    amount: String!
+    currency: String!
+    status: String!
+    createdAt: String!
+    completedAt: String
+}
+
+type StatementEntry {
+    id: ID!
+    walletId: ID!
+    transferId: ID!
+    counterpartyWalletId: String
+    direction: String!
+    amount: String!
+    currency: String!
+    completedAt: String!
+}
+
+type WalletSummary {
+    wallet: Wallet!
+    recentTransfers: [Transfer!]!
+    statement: [StatementEntry!]!
+    "Error codes for downstream views that could not be fetched (graceful degradation)."
+    partialErrors: [String!]!
+}
+
+type Query {
+    "Wallet lookup by owner id (proxied to the wallet service)."
+    walletByOwner(ownerId: ID!): Wallet
+
+    "Aggregated view: wallet core data + recent transfers + CQRS statement entries."
+    walletSummary(ownerId: ID!): WalletSummary
+}

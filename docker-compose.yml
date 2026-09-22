@@ -121,6 +121,27 @@ services:
       timeout: 5s
       retries: 10
 
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.api-gateway
+    container_name: nexolor-gateway
+    environment:
+      WALLET_SERVICE_URL: http://wallet-service:8080
+      NOTIFICATION_SERVICE_URL: http://notification-service:8082
+    ports:
+      - "8088:8088"
+    depends_on:
+      wallet-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   notification-service:
     build:
       context: .

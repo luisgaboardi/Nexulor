@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: nexolor-gateway
+  cloud:
+    gateway:
+      routes:
+        # statement must match BEFORE the generic wallet route: both live
+        # under /api/v1/wallets/** but belong to different services
+        - id: notification-statement
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/wallets/*/statement
+        - id: wallet-service
+          uri: ${WALLET_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/wallets/**,/api/v1/transfers/**
+  graphql:
+    graphiql:
+      enabled: true
+
+server:
+  port: 8088
+
+gateway:
+  wallet-service:
+    base-url: ${WALLET_SERVICE_URL:http://localhost:8080}
+  notification-service:
+    base-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8082}
+  downstream:
+    # PRD section 1: assume the network fails — bounded timeout + bounded
+    # retries on every downstream call
+    timeout: 2s
+    retries: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,metrics
+
+logging:
+  level:
+    com.nexulor: INFO

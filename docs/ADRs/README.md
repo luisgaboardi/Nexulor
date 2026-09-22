@@ -17,3 +17,4 @@ All ADRs are written in **English**.
 | [ADR-006](ADR-006-multimodule-monorepo-with-contract-first-proto.md) | Multi-module monorepo with contract-first proto | Accepted | 2 |
 | [ADR-007](ADR-007-cross-instance-velocity-redis.md) | Cross-instance velocity counting with Redis (fail-open) | Accepted | 3 |
 | [ADR-008](ADR-008-testcontainers-integration-tests.md) | Testcontainers over in-memory substitutes | Accepted | 3 |
+| [ADR-009](ADR-009-api-gateway-graphql-aggregation.md) | API Gateway with Spring Cloud Gateway and GraphQL aggregation | Accepted | 4 |
