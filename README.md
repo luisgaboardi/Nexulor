@@ -65,6 +65,34 @@ query {
 
 `walletSummary` fans out to the wallet core and the statement read model in parallel and stitches one response. If the statement service is down the query still returns, with the failure reported in `partialErrors` (graceful degradation — the statement is an eventual read model).
 
+### Security (Phase 4, ADR-010)
+
+The gateway is an **OAuth2 Resource Server** validating JWTs (PRD 2.1):
+
+| Request | Token |
+|---|---|
+| `POST /api/v1/wallets`, `POST /api/v1/wallets/*/credits`, `POST /api/v1/transfers` | **required** (`401` without/invalid) |
+| GET routes, `POST /graphql` (queries), GraphiQL, actuator | public |
+
+Local runs use the `jwt-local` profile (HS256 shared secret, demo only). Production swaps the decoder via `spring.security.oauth2.resourceserver.jwt.issuer-uri` (JWKS/RS256) with zero changes to the security rules.
+
+Mint a local demo token (requires `openssl`):
+
+```bash
+SECRET="local-demo-secret-change-me-0123456789abcdef"
+b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+H=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url)
+P=$(printf '{"sub":"demo-user","iss":"local","exp":%s,"iat":%s}' "$(($(date +%s)+300))" "$(date +%s)" | b64url)
+SIG=$(printf '%s.%s' "$H" "$P" | openssl dgst -sha256 -hmac "$SECRET" -binary | b64url)
+TOKEN="$H.$P.$SIG"
+
+curl -s -X POST http://localhost:8088/api/v1/transfers \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: my-order-42" \
+  -H "Content-Type: application/json" \
+  -d '{"sourceWalletId":"WALLET_A","destinationWalletId":"WALLET_B","amount":25.00,"currency":"BRL"}'
+```
+
 ## REST API (wallet service)
 
 | Method | Path | Description |

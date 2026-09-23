@@ -18,3 +18,4 @@ All ADRs are written in **English**.
 | [ADR-007](ADR-007-cross-instance-velocity-redis.md) | Cross-instance velocity counting with Redis (fail-open) | Accepted | 3 |
 | [ADR-008](ADR-008-testcontainers-integration-tests.md) | Testcontainers over in-memory substitutes | Accepted | 3 |
 | [ADR-009](ADR-009-api-gateway-graphql-aggregation.md) | API Gateway with Spring Cloud Gateway and GraphQL aggregation | Accepted | 4 |
+| [ADR-010](ADR-010-oauth2-jwt-resource-server-gateway.md) | OAuth2 resource server with JWT at the API Gateway | Accepted | 4 |

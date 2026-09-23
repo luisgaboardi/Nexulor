@@ -127,6 +127,8 @@ services:
       dockerfile: Dockerfile.api-gateway
     container_name: nexolor-gateway
     environment:
+      SPRING_PROFILES_ACTIVE: jwt-local
+      JWT_LOCAL_SECRET: local-demo-secret-change-me-0123456789abcdef
       WALLET_SERVICE_URL: http://wallet-service:8080
       NOTIFICATION_SERVICE_URL: http://notification-service:8082
     ports:
