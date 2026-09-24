@@ -176,3 +176,7 @@ mvnw verify -pl wallet-service -am   # single service with dependencies
 Wallet: domain + application unit tests, Redis idempotency adapter IT (real Redis), Kafka publisher IT (real Kafka). Fraud: rule engine tests, gRPC service tests, in-process gRPC integration test, Redis velocity IT. Notification: consumer E2E IT (Kafka + MongoDB projecting statements).
 
 Requires a running Docker engine for `*IT` (see ADR-008).
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `mvnw verify` on every push/PR to `master` on `ubuntu-latest`: unit tests + Testcontainers ITs against the runner's Docker engine, with Maven repository caching. Test failure artifacts (surefire/failsafe reports) are uploaded for 7 days.
