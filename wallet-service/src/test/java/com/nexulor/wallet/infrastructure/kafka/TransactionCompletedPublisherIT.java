@@ -54,7 +54,8 @@ class TransactionCompletedPublisherIT {
                 new DefaultKafkaProducerFactory<>(producerProps));
 
         TransactionCompletedPublisher publisher =
-                new TransactionCompletedPublisher(template, TOPIC);
+                new TransactionCompletedPublisher(template, TOPIC,
+                        io.micrometer.observation.ObservationRegistry.NOOP);
         UUID transferId = UUID.randomUUID();
         publisher.onTransferCompleted(TransactionCompletedEvent.from(
                 transferId,

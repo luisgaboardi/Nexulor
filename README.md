@@ -160,11 +160,26 @@ After the transfer commits, the wallet publishes `transaction-completed` to Kafk
 
 Transfers run inside a single database transaction. Both wallets are locked with `SELECT … FOR UPDATE` in **UUID ascending order** to avoid deadlocks. JPA `@Version` remains a secondary safety net. Fraud evaluation happens before locking (cheap rejection path). Idempotency is coordinated in Redis (ADR-002): the in-flight lock TTL bounds crash recovery, and completed outcomes are replayed from the 24h record.
 
+## Observability: distributed tracing (Phase 4, ADR-011)
+
+Every service reports spans to **Zipkin** via Micrometer Tracing (Brave bridge), with W3C `traceparent` propagation across HTTP, gRPC and Kafka. One request = one trace, including the async leg:
+
+```
+gateway (auth + route) -> wallet (tx) -> fraud (gRPC) -> [kafka] -> notification (projection)
+```
+
+- **Zipkin UI:** http://localhost:9411 — search by service (e.g. `nexolor-gateway`) or tag `http.route=/api/v1/transfers`, then click a trace to see the full timing tree.
+- **Sampling:** 100% for the showcase (`management.tracing.sampling.probability: 1.0`); tune per environment via env.
+- **Endpoint:** `ZIPKIN_ENDPOINT` env per service (compose sets `http://zipkin:9411/api/v2/spans`).
+- The full stack is 9 containers: Postgres, Mongo, Redis, Kafka, wallet, fraud, notification, gateway, Zipkin.
+
+See [ADR-011](docs/ADRs/ADR-011-distributed-tracing-micrometer-brave.md) for the design, including the gRPC virtual-thread rescope and Kafka observation toggles.
+
 ## Roadmap
 
-See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 (in progress)** — API Gateway done; next: CI/CD, OpenTelemetry, Kubernetes, Terraform.
+See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 (in progress)** — API Gateway, OAuth2/JWT, CI/CD and distributed tracing done; next: Kubernetes, Terraform.
 
-- Phase 4 remaining: GitHub Actions, OpenTelemetry tracing, K8s manifests, Terraform
+- Phase 4 remaining: K8s manifests, Terraform
 
 ## Tests
 

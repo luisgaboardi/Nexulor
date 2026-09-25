@@ -5,6 +5,7 @@ import com.nexulor.grpc.fraud.v1.EvaluateTransactionResponse;
 import com.nexulor.grpc.fraud.v1.FraudEvaluationServiceGrpc;
 import com.nexulor.wallet.application.port.FraudEvaluationPort;
 import com.nexulor.wallet.domain.FraudUnavailableException;
+import io.micrometer.tracing.Tracer;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.grpc.Status;
@@ -42,8 +43,17 @@ public class GrpcFraudClient implements FraudEvaluationPort {
 
     private final ExecutorService virtualThreads = Executors.newVirtualThreadPerTaskExecutor();
 
-    public GrpcFraudClient(@Value("${fraud.client.deadline-millis:300}") long deadlineMillis) {
+    // Trace context lives on the calling thread; the gRPC call runs on a
+    // virtual thread, so the scope is captured here and reopened there —
+    // without this, the Brave client interceptor would see no current span
+    // and the fraud-server span would start an orphan trace.
+    private final io.micrometer.tracing.Tracer tracer;
+
+    public GrpcFraudClient(
+            @Value("${fraud.client.deadline-millis:300}") long deadlineMillis,
+            Tracer tracer) {
         this.deadlineMillis = deadlineMillis;
+        this.tracer = tracer;
     }
 
     @GrpcClient("fraudService")
@@ -57,8 +67,22 @@ public class GrpcFraudClient implements FraudEvaluationPort {
                              UUID destinationWalletId,
                              BigInteger amountMinor,
                              String currencyCode) {
-        return CompletableFuture.supplyAsync(() -> callRemote(
-                transferId, sourceWalletId, destinationWalletId, amountMinor, currencyCode), virtualThreads)
+        // Capture the calling thread's trace context and reopen it inside the
+        // virtual thread: without this the Brave client interceptor would see
+        // no current span and the fraud span would start an orphan trace.
+        io.micrometer.tracing.TraceContext parent =
+                java.util.Optional.ofNullable(tracer.currentSpan()).map(io.micrometer.tracing.Span::context).orElse(null);
+        return java.util.concurrent.CompletableFuture
+                .supplyAsync(() -> {
+                    if (parent != null) {
+                        try (var scoped = tracer.currentTraceContext().maybeScope(parent)) {
+                            return callRemote(
+                                    transferId, sourceWalletId, destinationWalletId, amountMinor, currencyCode);
+                        }
+                    }
+                    return callRemote(
+                            transferId, sourceWalletId, destinationWalletId, amountMinor, currencyCode);
+                }, virtualThreads)
                 .orTimeout(deadlineMillis, TimeUnit.MILLISECONDS)
                 .join();
     }

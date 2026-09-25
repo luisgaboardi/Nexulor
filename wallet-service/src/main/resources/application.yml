@@ -27,6 +27,9 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: localhost:9092
+    template:
+      # injects W3C trace context into record headers (ADR-011)
+      observation-enabled: true
     producer:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -101,6 +104,13 @@ management:
   health:
     circuitbreakers:
       enabled: true
+  # Distributed tracing (Phase 4, ADR-011): 100% sampling for the showcase.
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
 
 logging:
   level:

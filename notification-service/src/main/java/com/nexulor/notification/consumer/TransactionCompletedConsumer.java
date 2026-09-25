@@ -2,6 +2,8 @@ package com.nexulor.notification.consumer;
 
 import com.nexulor.notification.readmodel.StatementEntryDocument;
 import com.nexulor.notification.readmodel.StatementEntryRepository;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -22,21 +24,28 @@ public class TransactionCompletedConsumer {
 
     private final StatementEntryRepository repository;
 
-    public TransactionCompletedConsumer(StatementEntryRepository repository) {
+    private final ObservationRegistry observationRegistry;
+
+    public TransactionCompletedConsumer(
+            StatementEntryRepository repository,
+            ObservationRegistry observationRegistry) {
         this.repository = repository;
+        this.observationRegistry = observationRegistry;
     }
 
     @KafkaListener(topics = "${notification.topics.transaction-completed:transaction-completed}")
     public void onTransactionCompleted(TransactionCompletedMessage message) {
-        try {
-            repository.save(debitEntry(message));
-            repository.save(creditEntry(message));
-            log.debug("projected transaction {} into statement read model", message.transferId());
-        } catch (RuntimeException e) {
-            // Let the error handler retry/seek; a partial projection is repaired
-            // by the upsert semantics on redelivery.
-            throw e;
-        }
+        // the listener container already restores the trace context from the
+        // record headers (micrometer kafka bindings); this observation nests
+        // the projection work under the consumer span
+        Observation.createNotStarted("transaction-completed.project", observationRegistry)
+                .lowCardinalityKeyValue("kafka.topic", "transaction-completed")
+                .highCardinalityKeyValue("transfer.id", message.transferId())
+                .observe(() -> {
+                    repository.save(debitEntry(message));
+                    repository.save(creditEntry(message));
+                });
+        log.debug("projected transaction {} into statement read model", message.transferId());
     }
 
     private StatementEntryDocument debitEntry(TransactionCompletedMessage message) {

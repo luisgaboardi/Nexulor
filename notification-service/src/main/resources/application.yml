@@ -9,6 +9,8 @@ spring:
       uri: mongodb://localhost:27017/notifications
   kafka:
     bootstrap-servers: localhost:9092
+    listener:
+      observation-enabled: true
     consumer:
       group-id: notification-service
       auto-offset-reset: earliest
@@ -27,6 +29,14 @@ management:
     web:
       exposure:
         include: health,info,metrics
+  # Distributed tracing (Phase 4, ADR-011): Brave bridge, Zipkin reporter,
+  # 100% sampling for the showcase (production would sample lower).
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
 
 notification:
   topics:

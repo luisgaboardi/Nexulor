@@ -35,6 +35,8 @@
         <caffeine.version>3.1.8</caffeine.version>
         <testcontainers.version>2.0.4</testcontainers.version>
         <spring-cloud.version>2024.0.0</spring-cloud.version>
+        <!-- aligned with the micrometer-tracing 1.4.x line managed by Boot 3.4 -->
+        <brave.version>6.0.3</brave.version>
     </properties>
 
     <dependencyManagement>
