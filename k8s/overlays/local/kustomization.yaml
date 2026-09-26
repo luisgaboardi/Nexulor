@@ -1,0 +1,17 @@
+# Local overlay for Docker Desktop / kind / minikube. Adds the jwt-local
+# profile key to the shared ConfigMap (kept out of base so clusters that wire
+# a real OIDC issuer don't inherit demo settings).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: nexolor-config
+    patch: |-
+      - op: add
+        path: /data/SPRING_PROFILES_ACTIVE
+        value: jwt-local

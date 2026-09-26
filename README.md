@@ -175,11 +175,33 @@ gateway (auth + route) -> wallet (tx) -> fraud (gRPC) -> [kafka] -> notification
 
 See [ADR-011](docs/ADRs/ADR-011-distributed-tracing-micrometer-brave.md) for the design, including the gRPC virtual-thread rescope and Kafka observation toggles.
 
+## Kubernetes (Phase 4)
+
+Kustomize manifests in [`k8s/`](k8s/) deploy the whole stack — 4 services + Zipkin + Postgres/Mongo/Redis/Kafka — into the `nexolor` namespace, with the tracing config carried over (`ZIPKIN_ENDPOINT` points at the in-cluster Zipkin, so the same end-to-end trace works):
+
+- `k8s/base` — namespace, shared `ConfigMap`/`Secret`, StatefulSets (postgres, mongo), Deployments (redis, kafka, zipkin), all 4 services with readiness/liveness probes on `/actuator/health` (fraud: gRPC 9090 + health 8081), Services and a NodePort `30088` entrypoint for the gateway.
+- `k8s/overlays/local` — adds the `jwt-local` profile for local clusters (Docker Desktop, kind, minikube).
+
+```bash
+# 1. build + load images (tags must match k8s/base: nexolor/<service>:latest)
+./mvnw -pl wallet-service -am spring-boot:build-image -DskipTests   # repeat per service
+kind load docker-image nexolor/wallet-service:latest                  # or minikube image load / Docker Desktop resolves locally
+
+# 2. deploy
+kubectl apply -k k8s/overlays/local
+
+# 3. use it
+kubectl -n nexolor port-forward svc/api-gateway 8088:8088
+kubectl -n nexolor port-forward svc/zipkin 9411:9411
+```
+
+Secrets are inline demo values — production would swap in a secrets manager, PVs and replicated data stores (noted in the manifests).
+
 ## Roadmap
 
-See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 (in progress)** — API Gateway, OAuth2/JWT, CI/CD and distributed tracing done; next: Kubernetes, Terraform.
+See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 (in progress)** — API Gateway, OAuth2/JWT, CI/CD, distributed tracing and Kubernetes manifests done; next: Terraform.
 
-- Phase 4 remaining: K8s manifests, Terraform
+- Phase 4 remaining: Terraform
 
 ## Tests
 

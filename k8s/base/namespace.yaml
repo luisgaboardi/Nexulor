@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nexolor
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexolor-config
+  namespace: nexolor
+  labels:
+    app.kubernetes.io/part-of: nexolor
+data:
+  ZIPKIN_ENDPOINT: "http://zipkin:9411/api/v2/spans"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/nexolor"
+  SPRING_DATA_REDIS_HOST: "redis"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  GRPC_CLIENT_FRAUDSERVICE_ADDRESS: "static://fraud-service:9090"
+  WALLET_SERVICE_URL: "http://wallet-service:8080"
+  NOTIFICATION_SERVICE_URL: "http://notification-service:8082"
+---
+# Showcase only: real deployments should use a secrets manager / SealedSecrets.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nexolor-secrets
+  namespace: nexolor
+  labels:
+    app.kubernetes.io/part-of: nexolor
+stringData:
+  POSTGRES_USER: "nexolor"
+  POSTGRES_PASSWORD: "nexolor"
+  JWT_LOCAL_SECRET: "local-demo-secret-change-me-0123456789abcdef"
