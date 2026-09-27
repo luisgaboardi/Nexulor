@@ -16,3 +16,4 @@ Thumbs.db
 .settings/
 bin/
 out/
+.tools/
