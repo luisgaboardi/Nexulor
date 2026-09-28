@@ -197,11 +197,24 @@ kubectl -n nexolor port-forward svc/zipkin 9411:9411
 
 Secrets are inline demo values — production would swap in a secrets manager, PVs and replicated data stores (noted in the manifests).
 
+## Terraform (Phase 4)
+
+[`terraform/`](terraform/) provisions the cloud topology on AWS — VPC, EKS, RDS PostgreSQL 16 (wallet store), MSK Kafka 3.6 (transaction-completed) and ElastiCache Redis 7 (idempotency/velocity) — with remote state in S3 + DynamoDB locking. See the [Terraform README](terraform/README.md) for the one-time state bootstrap and per-environment usage.
+
+```bash
+cd terraform
+terraform init -backend-config="bucket=nexolor-tfstate-<account-id>" ...
+terraform plan -var-file=envs/dev.tfvars
+terraform apply -var-file=envs/dev.tfvars
+```
+
+Outputs feed the k8s ConfigMap (`SPRING_DATASOURCE_URL`, `SPRING_KAFKA_BOOTSTRAP_SERVERS`, `SPRING_DATA_REDIS_HOST`); RDS credentials go to Secrets Manager, not to state-only variables. Mongo and Zipkin are the next increment (DocumentDB / self-hosted on EKS).
+
 ## Roadmap
 
-See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 (in progress)** — API Gateway, OAuth2/JWT, CI/CD, distributed tracing and Kubernetes manifests done; next: Terraform.
+See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 (in progress)** — API Gateway, OAuth2/JWT, CI/CD, distributed tracing, Kubernetes manifests and Terraform done; remaining: Mongo/Zipkin as managed services (DocumentDB / self-hosted).
 
-- Phase 4 remaining: Terraform
+- Phase 4 remaining: DocumentDB (mongo) + Zipkin on EKS
 
 ## Tests
 

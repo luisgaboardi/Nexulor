@@ -17,3 +17,10 @@ Thumbs.db
 bin/
 out/
 .tools/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
