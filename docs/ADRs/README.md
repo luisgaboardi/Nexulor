@@ -20,3 +20,4 @@ All ADRs are written in **English**.
 | [ADR-009](ADR-009-api-gateway-graphql-aggregation.md) | API Gateway with Spring Cloud Gateway and GraphQL aggregation | Accepted | 4 |
 | [ADR-010](ADR-010-oauth2-jwt-resource-server-gateway.md) | OAuth2 resource server with JWT at the API Gateway | Accepted | 4 |
 | [ADR-011](ADR-011-distributed-tracing-micrometer-brave.md) | Distributed tracing with Micrometer Tracing (Brave) and Zipkin | Accepted | 4 |
+| [ADR-012](ADR-012-self-hosted-stateful-workloads-on-eks.md) | Self-hosted stateful workloads on EKS instead of managed document stores | Accepted | 4 |

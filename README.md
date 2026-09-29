@@ -208,13 +208,11 @@ terraform plan -var-file=envs/dev.tfvars
 terraform apply -var-file=envs/dev.tfvars
 ```
 
-Outputs feed the k8s ConfigMap (`SPRING_DATASOURCE_URL`, `SPRING_KAFKA_BOOTSTRAP_SERVERS`, `SPRING_DATA_REDIS_HOST`); RDS credentials go to Secrets Manager, not to state-only variables. Mongo and Zipkin are the next increment (DocumentDB / self-hosted on EKS).
+Outputs feed the k8s ConfigMap (`SPRING_DATASOURCE_URL`, `SPRING_KAFKA_BOOTSTRAP_SERVERS`, `SPRING_DATA_REDIS_HOST`); RDS credentials go to Secrets Manager, not to state-only variables. Mongo and Zipkin stay self-hosted on the cluster (ADR-012): the EBS CSI addon (IRSA role in `terraform/eks.tf`) backs Mongo's PVC, so the whole topology deploys from `k8s/base` + `terraform/` with no managed document store.
 
 ## Roadmap
 
-See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 (in progress)** — API Gateway, OAuth2/JWT, CI/CD, distributed tracing, Kubernetes manifests and Terraform done; remaining: Mongo/Zipkin as managed services (DocumentDB / self-hosted).
-
-- Phase 4 remaining: DocumentDB (mongo) + Zipkin on EKS
+See [docs/PRD.md](docs/PRD.md). Current scope: **Phase 4 complete** — API Gateway, OAuth2/JWT, CI/CD, distributed tracing, Kubernetes (validated on kind), Terraform (EKS/RDS/MSK/ElastiCache) and self-hosted Mongo/Zipkin on EKS (ADR-012) all done. Next: production hardening (secrets, backups, HPA, sampling policy).
 
 ## Tests
 

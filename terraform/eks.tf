@@ -1,6 +1,23 @@
 # Kubernetes cluster running the k8s/base manifests (see ../k8s). Data stores
-# are AWS-managed, so the workloads talk to RDS/MSK/ElastiCache endpoints via
-# a ConfigMap generated in k8s-generated.tf.
+# that stay self-hosted on the cluster (mongo, zipkin) rely on the EBS CSI
+# addon below for their PersistentVolumeClaims; postgres/msk/redis are
+# AWS-managed and talk to the workloads via private endpoints.
+module "ebs_csi_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.52"
+
+  role_name = "${local.name_prefix}-ebs-csi"
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
+  }
+
+  tags = local.common_tags
+}
+
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.31"
@@ -13,9 +30,16 @@ module "eks" {
 
   cluster_endpoint_public_access = true
 
-  #IRSA: wallet's Kafka producer and the Redis/Postgres clients authenticate
-  # via pod-level roles instead of long-lived keys.
+  # IRSA: pod-level roles instead of long-lived keys (EBS CSI controller now,
+  # wallet's Kafka/Redis clients as they migrate to IRSA auth).
   enable_irsa = true
+
+  cluster_addons = {
+    aws-ebs-csi-driver = {
+      # Binds the PVCs from k8s/base StatefulSets (mongo) to EBS volumes.
+      service_account_role_arn = module.ebs_csi_irsa.iam_role_arn
+    }
+  }
 
   eks_managed_node_groups = {
     default = {

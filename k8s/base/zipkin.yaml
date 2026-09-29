@@ -1,3 +1,6 @@
+# Zipkin on the cluster, replacing the compose container. In-memory storage
+# keeps the showcase simple; the EBS CSI default StorageClass makes a PV
+# upgrade path trivial (swap STORAGE_TYPE=cassandra/mysql + a PVC) later.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
