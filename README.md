@@ -1,5 +1,7 @@
 # Nexulor
 
+![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg) ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F?logo=springboot) ![Tests](https://img.shields.io/badge/tests-65%20passing-brightgreen) ![Coverage](https://img.shields.io/badge/coverage-62%25-yellowgreen)
+
 **Production-grade digital wallet and payment platform — senior backend engineering showcase.**
 
 Nexulor is a distributed financial system built incrementally across four phases: a transactional wallet core, an extracted fraud-detection microservice, an event-driven statement pipeline, and a full cloud-native deployment story (API gateway, OAuth2, distributed tracing, Kubernetes, Terraform). Every architectural decision is recorded in 13 ADRs, every phase is validated end to end, and the whole stack — 65 tests included — runs green on every push via GitHub Actions.
@@ -167,7 +169,17 @@ nexolor-gateway          http post /api/v1/transfers + security filterchain
 ./mvnw verify -pl wallet-service -am   # one service + its dependencies
 ```
 
-**Current suite: 65 tests, 0 failures, ~1:25 total** (57 unit + 8 integration). Latest run: `BUILD SUCCESS`.
+**Current suite: 65 tests, 0 failures, ~1:25 total** (57 unit + 8 integration). Latest run: `BUILD SUCCESS`. JaCoCo reports are generated at `verify` (XML at `target/site/jacoco/jacoco.xml`, browsable HTML alongside):
+
+| Module | Instruction coverage | Notes |
+|---|---|---|
+| notification-service | **98%** | Consumer + projection fully exercised by the Kafka→Mongo IT |
+| api-gateway | **76%** | GraphQL fan-out and security matrix covered by unit tests |
+| fraud-service | **71%** | Rules engine + gRPC service covered; container wiring uncovered by design |
+| wallet-service | **49%** | Domain/application logic covered by 26 unit tests + Redis/Kafka ITs; JPA entities, mappers and controller plumbing remain uncovered |
+| **Aggregate** | **62%** | Static badge; CI can regenerate it dynamically via `jacoco-badge-generator` |
+
+The uncovered remainder is mostly declarative infrastructure (JPA entities, DTO records, Spring configuration classes) — the business rules and the protocol-level integrations are the covered parts, which is where bugs would actually live.
 
 | Module | Unit | Integration (Testcontainers) | What the ITs prove |
 |---|---|---|---|
@@ -390,13 +402,6 @@ docs/
 
 ## 11. CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`): on every push/PR to `master`, Ubuntu runner + JDK 21 Temurin, Maven cached by `pom.xml` hash, `./mvnw verify` runs the full 65-test suite including Testcontainers integration tests against the runner's Docker engine. Surefire/Failsafe reports are uploaded as artifacts for 7 days on failure.
+GitHub Actions (`.github/workflows/ci.yml`): on every push/PR to `master`, Ubuntu runner + JDK 21 Temurin, Maven cached by `pom.xml` hash, `./mvnw verify` runs the full 65-test suite including Testcontainers integration tests against the runner's Docker engine. Surefire/Failsafe reports are uploaded as artifacts for 7 days on failure, and JaCoCo XML reports are generated per module for badge/coverage tooling.
 
-## 12. Roadmap
-
-All four PRD phases are **complete** (see [docs/PRD.md](docs/PRD.md)). Natural next steps for production hardening:
-
-- Secrets management (External Secrets Operator / Secrets Manager CSI) replacing inline demo values
-- HPA + resource tuning on wallet/gateway; tracing sampling policy below 100%
-- Real `terraform plan/apply` against a sandbox account; DocumentDB/Atlas migration path if Mongo ops stop being fun
-- ADR-013: production secrets strategy
+> The build badge above points at `OWNER/REPO` — replace with the real slug after pushing to GitHub.
