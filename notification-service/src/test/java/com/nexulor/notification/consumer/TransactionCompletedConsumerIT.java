@@ -45,13 +45,20 @@ class TransactionCompletedConsumerIT {
         broker.afterPropertiesSet();
 
         Map<String, Object> props = new HashMap<>();
-        props.put("spring.data.mongodb.uri", MONGO.getReplicaSetUrl());
         props.put("spring.kafka.bootstrap-servers", broker.getBrokersAsString());
-        props.put("spring.kafka.consumer.auto-offset-reset", "earliest");
         context = new SpringApplicationBuilder(NotificationApplication.class)
                 .properties(props)
-                // args override application.yml (default properties do not)
-                .run("--server.port=0");
+                // Overrides must be command-line args, not .properties(): the latter are
+                // *default* properties and lose to application.yml, which hardcodes
+                // mongodb://localhost:27017 — the test then passed against whatever Mongo
+                // happened to listen on 27017 and failed on a bare CI runner.
+                .run("--server.port=0",
+                        "--spring.data.mongodb.uri=" + MONGO.getReplicaSetUrl(),
+                        "--spring.kafka.bootstrap-servers=" + broker.getBrokersAsString(),
+                        "--spring.kafka.consumer.auto-offset-reset=earliest");
+
+        assertEquals(MONGO.getReplicaSetUrl(), context.getEnvironment().getProperty("spring.data.mongodb.uri"),
+                "context must be wired to the Testcontainers Mongo instance");
     }
 
     @AfterAll
@@ -92,7 +99,7 @@ class TransactionCompletedConsumerIT {
                 "BRL",
                 Instant.parse("2026-09-28T12:00:00Z")));
 
-        Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() ->
+        Awaitility.await().atMost(30, TimeUnit.SECONDS).pollInterval(200, TimeUnit.MILLISECONDS).until(() ->
                 !repository.findByWalletIdOrderByCompletedAtDesc(sourceId).isEmpty());
 
         List<StatementEntryDocument> sourceEntries =
