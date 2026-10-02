@@ -1,6 +1,6 @@
 # Nexulor
 
-![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg) ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F?logo=springboot) ![Tests](https://img.shields.io/badge/tests-65%20passing-brightgreen) ![Coverage](https://img.shields.io/badge/coverage-62%25-yellowgreen)
+![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F?logo=springboot) ![Tests](https://img.shields.io/badge/tests-65%20passing-brightgreen) ![Coverage](https://img.shields.io/badge/coverage-62%25-yellowgreen)
 
 **Production-grade digital wallet and payment platform — senior backend engineering showcase.**
 
@@ -66,7 +66,9 @@ flowchart LR
 
 ## 2. Anatomy of a transfer (the core flow)
 
-Every `POST /api/v1/transfers` walks this path. This is the flow that gets tested, traced, and reasoned about:
+Every `POST /api/v1/transfers` walks this path. This is the flow that gets tested, traced, and reasoned about — here it is end to end, culminating in the single Zipkin trace (real spans from a real request):
+
+![Nexulor transfer end to end: JWT → credit → transfer → statement → one trace in Zipkin](docs/assets/nexulor-transfer-trace.gif)
 
 ```mermaid
 sequenceDiagram

@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1180px; height:720px; background:#0d1117; color:#e6edf3; font-family:'Cascadia Code','Consolas','SF Mono',monospace; overflow:hidden; position:relative; }
+  .titlebar { height:38px; background:#161b22; display:flex; align-items:center; padding:0 14px; gap:8px; border-bottom:1px solid #21262d; }
+  .dot { width:12px; height:12px; border-radius:50%; }
+  .r{background:#ff5f56}.y{background:#ffbd2e}.g{background:#27c93f}
+  .titlebar span { margin-left:12px; color:#8b949e; font-size:13px; }
+  .badge { margin-left:auto; background:#238636; color:#fff; padding:2px 10px; border-radius:10px; font-size:12px; }
+  .panels { display:flex; height:682px; }
+  .left { width:46%; padding:16px 14px; border-right:1px solid #21262d; font-size:14px; line-height:1.55; white-space:pre-wrap; }
+  .right { width:54%; padding:16px 14px; font-size:13px; }
+  .p { color:#a5d6ff; } .cmt { color:#8b949e; } .cmd { color:#7ee787; } .ok { color:#3fb950; font-weight:bold; }
+  .warn { color:#d29922; } .resp { color:#e3b341; }
+  .prompt { color:#ff7b72; }
+  .cursor { display:inline-block; width:9px; height:16px; background:#e6edf3; vertical-align:-3px; animation:blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  h4 { color:#58a6ff; margin:0 0 10px; font-size:13px; letter-spacing:.5px; text-transform:uppercase; }
+  .step { opacity:0.15; transition:opacity .3s; }
+  .step.on { opacity:1; }
+  .step .chk { color:#3fb950; font-weight:bold; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; }
+  th { text-align:left; color:#8b949e; font-weight:normal; border-bottom:1px solid #30363d; padding:4px 6px; font-size:12px; }
+  td { padding:3px 6px; border-bottom:1px solid #21262d; font-size:12.5px; }
+  .svc { color:#79c0ff; }
+  .gantt { position:relative; height:14px; background:#161b22; border-radius:3px; margin:2px 0; }
+  .bar { position:absolute; height:100%; border-radius:3px; min-width:2px; }
+  .b-gw { background:#58a6ff; } .b-wa { background:#3fb950; } .b-fr { background:#d29922; } .b-no { background:#bc8cff; }
+  .async { color:#f85149; font-size:12px; margin-top:10px; }
+  .traceid { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:8px 10px; margin-top:12px; font-size:12.5px; }
+  .traceid b { color:#f778ba; }
+</style>
+</head>
+<body>
+<div class="titlebar">
+  <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+  <span>nexulor — transfer + distributed trace</span>
+  <span class="badge">● nexolor compose — 9 containers UP</span>
+</div>
+<div class="panels">
+  <div class="left" id="term"></div>
+  <div class="right">
+    <div class="step" id="s-zip">
+      <h4>Zipkin — search: serviceName=nexolor-gateway</h4>
+      <table>
+        <tr><th>Date</th><th>Service</th><th>Span name</th><th>Duration</th></tr>
+        <tr id="row-hit" style="background:#1f6feb33"><td>12:41:07.612</td><td class="svc">nexolor-gateway</td><td>http post /api/v1/transfers</td><td>476.4 ms</td></tr>
+      </table>
+    </div>
+    <div class="step" id="s-tree" style="margin-top:18px">
+      <h4>trace <b id="tid">…</b> — 15 spans · 4 services</h4>
+      <div id="waterfall"></div>
+      <div class="async" id="asyncnote">↯ spans at &gt;476 ms are the async Kafka leg — same traceId, published after commit</div>
+    </div>
+    <div class="traceid step" id="s-traceid">traceId: <b>6abd2ab649b08e299dc41d1748c188fb</b><br>one trace: gateway → wallet → fraud (gRPC) → kafka → notification<br>W3C traceparent propagated across HTTP · gRPC · Kafka</div>
+  </div>
+</div>
+<script>
+const T0 = 1790782134968289;
+const SPANS = [
+  ["nexolor-gateway",       "http post",                    0.0, 476.4, "b-gw", ""],
+  ["nexolor-gateway",       "security filterchain before",  0.4,  51.1, "b-gw", "  "],
+  ["nexolor-gateway",       "authorize exchange",          49.0,   2.3, "b-gw", "    "],
+  ["nexolor-gateway",       "secured request",             51.8, 424.6, "b-gw", "  "],
+  ["nexolor-wallet",        "http post",                   79.1, 384.9, "b-wa", ""],
+  ["nexolor-wallet",        "http post /api/v1/transfers",177.0, 285.1, "b-wa", ""],
+  ["fraud-service",         "grpc EvaluateTransaction",   207.9, 130.2, "b-fr", ""],
+  ["fraud-service",         "grpc EvaluateTransaction",   280.6,  59.8, "b-fr", ""],
+  ["nexolor-wallet",        "transaction-completed.publish",456.1, 4.4, "b-wa", ""],
+  ["nexolor-wallet",        "transaction-completed send", 456.8,  47.1, "b-wa", ""],
+  ["nexolor-gateway",       "security filterchain after", 476.2,   0.1, "b-gw", ""],
+  ["notification-service",  "transaction-completed receive",575.5,118.0,"b-no", ""],
+  ["notification-service",  "transaction-completed.project",595.0, 98.1,"b-no", ""],
+];
+const MAXMS = 700;
+const wf = document.getElementById("waterfall");
+wf.innerHTML = SPANS.map(([svc,name,off,dur,cls,ind]) => `
+  <div style="display:flex;align-items:center;gap:6px">
+    <div style="width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" class="svc">${svc}</div>
+    <div style="width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c9d1d9">${ind}${name}</div>
+    <div style="flex:1"><div class="gantt"><div class="bar ${cls}" style="left:${off/MAXMS*100}%;width:${Math.max(dur/MAXMS*100,0.6)}%" title="${off}ms +${dur}ms"></div></div></div>
+    <div style="width:70px;text-align:right;color:#8b949e">${dur.toFixed(1)}ms</div>
+  </div>`).join("");
+
+const $ = id => document.getElementById(id);
+function line(html){ const d=document.createElement("div"); d.innerHTML=html; $("term").appendChild(d); return d; }
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+
+const TERM = [
+  [700,  `<span class="cmt"># 1 — mint a local demo JWT (HS256, jwt-local profile)</span>\n<span class="prompt">$</span> <span class="cmd">TOKEN=$(mint_jwt.sh)</span>   <span class="ok">✓ eyJhbGciOi...</span>`],
+  [600,  `\n<span class="cmt"># 2 — credit the source wallet</span>\n<span class="prompt">$</span> <span class="cmd">curl -X POST :8088/api/v1/wallets/4e9a…e475/credits -d '{"amount":"100.00"}'</span>\n<span class="resp">{"balance":592.0000,"currency":"BRL"}</span> <span class="ok">✓ 201</span>`],
+  [600,  `\n<span class="cmt"># 3 — P2P transfer, fraud-checked over gRPC, idempotent via Redis</span>\n<span class="prompt">$</span> <span class="cmd">curl -X POST :8088/api/v1/transfers \\</span>\n<span class="cmd">    -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: demo-1" \\</span>\n<span class="cmd">    -d '{"sourceWalletId":"4e9a…e475","destinationWalletId":"4976…6d84","amount":"25.00"}'</span>`],
+  [900,  `<span class="resp">{"id":"a1b2…","status":"COMPLETED","amount":25.0000}</span> <span class="ok">✓ 201 Created</span>`],
+  [500,  `\n<span class="cmt"># 4 — statement: CQRS projection built from Kafka (eventual)</span>\n<span class="prompt">$</span> <span class="cmd">curl :8088/api/v1/wallets/4e9a…e475/statement</span>\n<span class="resp">[{"direction":"DEBIT","amount":"25.00"}]</span> <span class="ok">✓ projected</span>`],
+];
+const STEPS = [
+  [300, "s-zip"], [1100, "s-tree"], [2000, "s-traceid"],
+];
+
+async function run(){
+  document.getElementById("term").innerHTML = "";
+  ["s-zip","s-tree","s-traceid"].forEach(id=>$(id).classList.remove("on"));
+  document.getElementById("tid").textContent = "…";
+  for (const [d,html] of TERM){
+    const el = line('<span class="cursor"></span>');
+    await wait(d);
+    el.outerHTML = `<div>${html}</div>`;
+  }
+  for (const [d,id] of STEPS){ await wait(d); $(id).classList.add("on"); }
+  document.getElementById("tid").textContent = "6abd2ab6…88fb";
+  // animate waterfall bars
+  document.querySelectorAll("#waterfall .bar").forEach((b,i)=>{
+    b.style.width="0";
+    setTimeout(()=>{ b.style.transition="width .45s ease-out"; b.style.width=Math.max(SPANS[i][3]/MAXMS*100,0.6)+"%"; }, i*130);
+  });
+  line(`<div class="ok" style="margin-top:10px">✔ one traceId across gateway → wallet → fraud → kafka → notification</div>`);
+}
+run();
+window.replay = run; // restart animation in place (used for recording)
+</script>
+</body>
+</html>
